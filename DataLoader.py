@@ -93,26 +93,41 @@ def store_cluster_codigo():
     return store_to_cluster_num
 
 """Funcion para formatear la data ventas remplazando las features categoricas"""
+"Genera lag features de la columna 'lag_feature' con retraso igual a 'lag'"
+def generar_lag_features(df,lag_feature,lag,categorie="cod_store_subgroup"):
+    df[f"{lag_feature}_lag_{lag}"]=df.groupby(categorie)[lag_feature].shift(lag)
+
+
 def importar_ventas():
-    from pathlib import Path
-    archivo=Path("ventas_final.csv")
-    if not archivo.exists():
-        ventas=leer_csv("eci_transactions")
-        cluster=store_cluster_codigo()
-        store_x_subgroup=sql^"""SELECT DISTINCT store_id, subgroup FROM ventas"""
+	from pathlib import Path
+	archivo=Path("ventas_final.csv")
+	if not archivo.exists():
+		ventas=leer_csv("eci_transactions")
+		
+		cluster=store_cluster_codigo()
+		store_x_subgroup=sql^"""SELECT DISTINCT store_id, subgroup FROM ventas"""
 
-        
-        codigo=range(len(store_x_subgroup)) #productos*tiendas
-        store_x_subgroup["cod_store_subgroup"]=codigo
-        
-        ventas=sql^"""SELECT date,store_id,subgroup, sum(quantity) as demand, mean(price) as mean_price FROM ventas GROUP BY date, store_id, subgroup"""
-        ventas["cluster"]=ventas["store_id"].map(cluster)
-        ventas=ventas.merge(store_x_subgroup,on=["store_id","subgroup"],how="left")
-        ventas.drop(["store_id","subgroup"],axis=1,inplace=True)
-        ventas.to_csv("ventas_final.csv",index=False)
-        return ventas
-    else:
-        return leer_csv("ventas_final.csv")
+		codigo=range(len(store_x_subgroup)) #productos*tiendas
+		store_x_subgroup["cod_store_subgroup"]=codigo
+		
+		ventas=sql^"""SELECT date,store_id,subgroup, sum(quantity) as demand, mean(price) as mean_price FROM ventas GROUP BY date, store_id, subgroup"""
+		ventas["cluster"]=ventas["store_id"].map(cluster)
+		ventas=ventas.merge(store_x_subgroup,on=["store_id","subgroup"],how="left")
+		ventas.drop(["store_id","subgroup"],axis=1,inplace=True)
+		ventas=ventas.sort_values(by=["cod_store_subgroup","date"])
+		for i in range(1,8): #agregamos lag a 7 dias por que vamos a predecir 7 dias
+			generar_lag_features(ventas,"demand",i,"cod_store_subgroup")
+		ventas["date"]=pd.to_datetime(ventas["date"])
+		ventas["day"]=ventas["date"].dt.day
+		ventas["month"]=ventas["date"].dt.month
+		ventas["year"]=ventas["date"].dt.year
+		ventas.drop("date",axis=1,inplace=True)
+		ventas.to_csv("ventas_final.csv",index=False)
+		return ventas
+	else:
+		ventas=leer_csv("ventas_final.csv")
+		return ventas
 
 
-    
+
+	
