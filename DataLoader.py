@@ -110,6 +110,8 @@ def importar_ventas():
 		codigo=range(len(store_x_subgroup)) #productos*tiendas
 		store_x_subgroup["cod_store_subgroup"]=codigo
 		
+		ventas["quantity"]=ventas["total_sales"]//ventas["price"]
+		
 		ventas=sql^"""SELECT date,store_id,subgroup, sum(quantity) as demand, mean(price) as mean_price FROM ventas GROUP BY date, store_id, subgroup"""
 		ventas["cluster"]=ventas["store_id"].map(cluster)
 		ventas=ventas.merge(store_x_subgroup,on=["store_id","subgroup"],how="left")
