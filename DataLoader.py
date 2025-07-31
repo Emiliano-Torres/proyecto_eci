@@ -18,7 +18,7 @@ def leer_csv(nombre):
     return data
 
 """Funcion para corregir la calidad del archivo stores_clusters"""
-def importar_cluster_stores:
+def importar_cluster_stores():
 	from pathlib import Path
 	archivo=Path("store_clusters_sin_nulls.csv")
 	if not archivo.exists():
@@ -50,11 +50,11 @@ def importar_cluster_stores:
 		nulls=sql^"""SELECT * FROM clusters_coordenadas WHERE cluster is null"""
 		nulls=nulls.sort_values(by="lat")
 		etiquetas=["FL_Cluster","GA_Cluster","SC_Cluster","SC_Cluster","SC_Cluster","NC_Cluster","NC_Cluster","NC_Cluster","Textas_Cluster",
-		"Midwest_Cluster","Midwest_Cluster","Ohio_Great_Lakes","Ohio_Great_Lakes","NJ_Cluster","Northeast_Cluster","Midwest_Cluster","Northeast_Cluster" ]
+"Midwest_Cluster","Midwest_Cluster","Ohio_Great_Lakes","Ohio_Great_Lakes","NJ_Cluster","Northeast_Cluster","Midwest_Cluster","Northeast_Cluster" ]
 		nulls["cluster"]=etiquetas
 		for _, row in nulls.iterrows():
 			clusters_stores.loc[(clusters_stores["store_id"]==row.iloc[0]),["cluster"]]=row.iloc[3]
-			clusters_stores.to_csv("store_clusters_sin_nulls.csv",index=False)
+		clusters_stores.to_csv("store_clusters_sin_nulls.csv",index=False)
 		return leer_csv("store_clusters_sin_nulls.csv")
 	else:
 		return leer_csv("store_clusters_sin_nulls.csv")
