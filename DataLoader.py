@@ -18,45 +18,46 @@ def leer_csv(nombre):
     return data
 
 """Funcion para corregir la calidad del archivo stores_clusters"""
-def importar_cluster_stores():
-    from pathlib import Path
-    archivo=Path("store_clusters_sin_nulls.csv")
-    if not archivo.exists():
-        stores=leer_csv("eci_stores")
-        clusters_stores=leer_csv("eci_stores_clusters")
-        from opencage.geocoder import OpenCageGeocode
-
-        clave = '86efa54a2ee6456e9b1b1c470156275c'
-        geocoder = OpenCageGeocode(clave)
-        lats=[]
-        lngs=[]
-        for index, row in stores.iterrows():
-            direccion=str(row.iloc[3])+" ,"+str(row.iloc[4])+" ,"+str(row.iloc[5])+" ,"+str(row.iloc[6])+" " +str(row.iloc[7])
-            resultados = geocoder.geocode(direccion)
-            if resultados:
-                lat = resultados[0]['geometry']['lat']
-                lng = resultados[0]['geometry']['lng']
-                lats.append(lat)
-                lngs.append(lng)
-            else:
-                lats.append(None)
-                lngs.append(None)
-
-        stores["lat"]=lats
-        stores["lng"]=lngs
-        clusters_coordenadas=sql^"""Select s.store_id, s.lat,s.lng, sc.cluster FROM clusters_stores as sc
-                   INNER JOIN stores as s on s.store_id=sc.store_id """
-
-        nulls=sql^"""SELECT * FROM clusters_coordenadas WHERE cluster is null"""
-        nulls=nulls.sort_values(by="lat")
-        etiquetas=["FL_Cluster","GA_Cluster","SC_Cluster","SC_Cluster","SC_Cluster","NC_Cluster","NC_Cluster","NC_Cluster","Textas_Cluster",
-        "Midwest_Cluster","Midwest_Cluster","Ohio_Great_Lakes","Ohio_Great_Lakes","NJ_Cluster","Northeast_Cluster","Midwest_Cluster","Northeast_Cluster" ]
-        nulls["cluster"]=etiquetas
-        for _, row in nulls.iterrows():
-            clusters_stores.loc[(clusters_stores["store_id"]==row.iloc[0]),["cluster"]]=row.iloc[3]
-        clusters_stores.to_csv("store_clusters_sin_nulls.csv",index=False)
-    else:
-        return leer_csv("store_clusters_sin_nulls.csv")
+def importar_cluster_stores:
+	from pathlib import Path
+	archivo=Path("store_clusters_sin_nulls.csv")
+	if not archivo.exists():
+		stores=leer_csv("eci_stores")
+		clusters_stores=leer_csv("eci_stores_clusters")
+		from opencage.geocoder import OpenCageGeocode
+		
+		clave = '86efa54a2ee6456e9b1b1c470156275c'
+		geocoder = OpenCageGeocode(clave)
+		lats=[]
+		lngs=[]
+		for index, row in stores.iterrows():
+			direccion=str(row.iloc[3])+" ,"+str(row.iloc[4])+" ,"+str(row.iloc[5])+" ,"+str(row.iloc[6])+" " +str(row.iloc[7])
+			resultados = geocoder.geocode(direccion)
+			if resultados:
+				lat = resultados[0]['geometry']['lat']
+				lng = resultados[0]['geometry']['lng']
+				lats.append(lat)
+				lngs.append(lng)
+			else:
+				lats.append(None)
+				lngs.append(None)
+				
+		stores["lat"]=lats
+		stores["lng"]=lngs
+		clusters_coordenadas=sql^"""Select s.store_id, s.lat,s.lng, sc.cluster FROM clusters_stores as sc
+		INNER JOIN stores as s on s.store_id=sc.store_id """
+		
+		nulls=sql^"""SELECT * FROM clusters_coordenadas WHERE cluster is null"""
+		nulls=nulls.sort_values(by="lat")
+		etiquetas=["FL_Cluster","GA_Cluster","SC_Cluster","SC_Cluster","SC_Cluster","NC_Cluster","NC_Cluster","NC_Cluster","Textas_Cluster",
+		"Midwest_Cluster","Midwest_Cluster","Ohio_Great_Lakes","Ohio_Great_Lakes","NJ_Cluster","Northeast_Cluster","Midwest_Cluster","Northeast_Cluster" ]
+		nulls["cluster"]=etiquetas
+		for _, row in nulls.iterrows():
+			clusters_stores.loc[(clusters_stores["store_id"]==row.iloc[0]),["cluster"]]=row.iloc[3]
+			clusters_stores.to_csv("store_clusters_sin_nulls.csv",index=False)
+		return leer_csv("store_clusters_sin_nulls.csv")
+	else:
+		return leer_csv("store_clusters_sin_nulls.csv")
 
 
 
