@@ -3,7 +3,7 @@
 """
 import pandas as pd
 from inline_sql import sql, sql_val
-
+from numpy import pi, sin,cos
 #normaliza los nombres de las columnas a minuscula por comodidad
 def leer_csv(nombre):
     
@@ -127,16 +127,24 @@ def importar_ventas():
 		ventas["day"]=ventas["date"].dt.day
 		ventas["month"]=ventas["date"].dt.month
 		ventas["year"]=ventas["date"].dt.year
-		ventas.drop("date",axis=1,inplace=True)
+		#ventas.drop("date",axis=1,inplace=True)
 		ventas.to_csv("ventas_final.csv",index=False)
 		return ventas
 	else:
 		ventas=leer_csv("ventas_final.csv")
 		return ventas
 
-def importar_ventas_fourier():
-	return
-
-
+def agregar_fourier(df,k):
+	df["date"]=pd.to_datetime(df["date"])
+	dias=df["date"].dt.dayofyear
+	meses=df["date"].dt.month
+	periodo_anual=365.25
+	periodo_mensual=30.44
+	for i in range(1,k+1):
+		df[f"anual_sin_{i}"]=sin(2*i*pi*dias/periodo_anual)
+		df[f"anual_cos_{i}"]=cos(2*i*pi*dias/periodo_anual)
+		df[f"mensual_sin_{i}"]=sin(2*i*pi*meses/periodo_mensual)
+		df[f"mensual_cos_{i}"]=cos(2*i*pi*meses/periodo_mensual)
+		
 
 	
