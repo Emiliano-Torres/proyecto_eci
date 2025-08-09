@@ -98,21 +98,28 @@ def store_cluster_codigo():
 def generar_lag_features(df,lag_feature,lag,categorie=["subgroup_cod","store_cod"]):
     df[f"{lag_feature}_lag_{lag}"]=df.groupby(categorie)[lag_feature].shift(lag)
 
+"""Genera el diccionario que traduce del nombre a un int usando el archivo de transacciones"""
+def generar_store_cod(): 
+	info=leer_csv("eci_stores")
+	store=info["store_id"].unique()
+	codigo_store=list(range(len(store)))
+	return dict(zip(store,codigo_store))
+
+"""Genera el diccionario que traduce del nombre a un int"""
+def generar_subgroup_cod():
+	info=leer_csv("eci_product_master")
+	subgroup=info["subgroup"].unique()
+	codigo_subgroup=list(range(len(subgroup)))
+	return dict(zip(subgroup,codigo_subgroup))
 
 def importar_ventas():
 	from pathlib import Path
 	archivo=Path("ventas_final.csv")
 	if not archivo.exists():
 		ventas=leer_csv("eci_transactions")
+		store_dict=generar_store_cod()
+		subgroup_dict=generar_subgroup_cod()
 		cluster=store_cluster_codigo()
-		store=ventas["store_id"].unique()
-		subgroup=ventas["subgroup"].unique()
-		codigo_store=list(range(len(store)))
-		codigo_subgroup=list(range(len(subgroup)))
-
-		store_dict=dict(zip(store,codigo_store))
-		subgroup_dict=dict(zip(subgroup,codigo_subgroup))
-		
 		ventas["quantity"]=ventas["total_sales"]//ventas["price"]
 		
 		ventas=sql^"""SELECT date,store_id,subgroup, sum(quantity) as demand, mean(price) as mean_price FROM ventas GROUP BY date, store_id, subgroup"""
@@ -146,5 +153,68 @@ def agregar_fourier(df,k):
 		df[f"mensual_sin_{i}"]=sin(2*i*pi*meses/periodo_mensual)
 		df[f"mensual_cos_{i}"]=cos(2*i*pi*meses/periodo_mensual)
 		
+def preparar_test(nombre_archivo_test:str):
+	from pathlib import Path
+	archivo=Path("test_prediccion.csv")
+	if not archivo.exists():
+		transacciones=leer_csv("eci_transactions.csv")
+		ventas=importar_ventas()
+		ventas=ventas[["date","store_cod","subgroup_cod","mean_price"]]
+		test=leer_csv(nombre_archivo_test)
+		test[['store_id', 'subgroup', 'date']] = test["store_subgroup_date_id"].str.split('_', expand=True)
+		test["store_cod"]=test["store_id"].map(generar_store_cod())
+		test["subgroup_cod"]=test["subgroup"].map(generar_subgroup_cod())
+		test["date"]=pd.to_datetime(test["date"])
+		ventas["date"]=pd.to_datetime(ventas["date"])
+		test["mean_price"]=0
+		test['fecha_busqueda'] = test['date'] - pd.DateOffset(years=1)
+		
+		test = pd.merge_asof(
+		    test.sort_values('fecha_busqueda'),
+		    ventas.rename(columns={'mean_price': 'precio_2023', 'date': 'fecha_ref'}).sort_values('fecha_ref'),
+		    left_on='fecha_busqueda',
+		    right_on='fecha_ref',
+		    by=['store_cod', 'subgroup_cod'],  # empareja dentro de cada grupo
+		    direction='backward'
+		)
+		test['mean_price'] = test['mean_price'].fillna(test['precio_2023'])
+	
+		test[['date', 'store_cod', 'subgroup_cod', 'mean_price']]
+		test["day"]=test["date"].dt.day
+		test["month"]=test["date"].dt.month
+		test["year"]=test["date"].dt.year	
+		test["cluster"]=test["store_id"].map(store_cluster_codigo())
+		test.sort_values(by=["subgroup_cod","store_cod","date"],inplace=True)
+		test.to_csv("test_prediccion.csv",index=False)
+	else:
+		test=leer_csv("test_prediccion")
+	return test
 
+
+	
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
 	
