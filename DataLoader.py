@@ -122,7 +122,9 @@ def importar_ventas():
 		cluster=store_cluster_codigo()
 		ventas["quantity"]=ventas["total_sales"]//ventas["price"]
 		
-		ventas=sql^"""SELECT date,store_id,subgroup, sum(quantity) as demand, mean(price) as mean_price FROM ventas GROUP BY date, store_id, subgroup"""
+		ventas=sql^"""SELECT date,store_id,subgroup, sum(quantity) as demand, AVG(price) as mean_price,
+					STDDEV_POP(price) as std_price, MAX(price) as max_price, MIN(price) as min_price
+					FROM ventas GROUP BY date, store_id, subgroup"""
 		ventas["cluster"]=ventas["store_id"].map(cluster)
 		ventas["store_cod"]=ventas["store_id"].map(store_dict)
 		ventas["subgroup_cod"]=ventas["subgroup"].map(subgroup_dict)
@@ -157,9 +159,8 @@ def preparar_test(nombre_archivo_test:str):
 	from pathlib import Path
 	archivo=Path("test_prediccion.csv")
 	if not archivo.exists():
-		transacciones=leer_csv("eci_transactions.csv")
 		ventas=importar_ventas()
-		ventas=ventas[["date","store_cod","subgroup_cod","mean_price"]]
+		ventas=ventas[["date","store_cod","subgroup_cod","mean_price","std_price","max_price","min_price"]]
 		test=leer_csv(nombre_archivo_test)
 		test[['store_id', 'subgroup', 'date']] = test["store_subgroup_date_id"].str.split('_', expand=True)
 		test["store_cod"]=test["store_id"].map(generar_store_cod())
@@ -167,7 +168,7 @@ def preparar_test(nombre_archivo_test:str):
 		test["date"]=pd.to_datetime(test["date"])
 		ventas["date"]=pd.to_datetime(ventas["date"])
 		test["mean_price"]=0
-		test['fecha_busqueda'] = test['date'] - pd.DateOffset(years=1)
+		test['fecha_busqueda'] = test['date'] - pd.DateOffset(weeks=1)
 		
 		test = pd.merge_asof(
 		    test.sort_values('fecha_busqueda'),
@@ -177,19 +178,33 @@ def preparar_test(nombre_archivo_test:str):
 		    by=['store_cod', 'subgroup_cod'],  # empareja dentro de cada grupo
 		    direction='backward'
 		)
-		test['mean_price'] = test['mean_price'].fillna(test['precio_2023'])
+		test['mean_price'] = test['precio_2023']
 	
-		test[['date', 'store_cod', 'subgroup_cod', 'mean_price']]
 		test["day"]=test["date"].dt.day
 		test["month"]=test["date"].dt.month
 		test["year"]=test["date"].dt.year	
 		test["cluster"]=test["store_id"].map(store_cluster_codigo())
+		test=test[['date',"store_subgroup_date_id", 'store_cod', 'subgroup_cod', 'mean_price',"cluster","year","day","month","std_price","max_price","min_price"]]
 		test.sort_values(by=["subgroup_cod","store_cod","date"],inplace=True)
 		test.to_csv("test_prediccion.csv",index=False)
 	else:
 		test=leer_csv("test_prediccion")
 	return test
 
+
+"""Toma las predicciones y crea el archivo para subir al kaggle"""
+def crear_archivo_kaggle(predicciones):
+	import os
+	test=leer_csv("ids_test")
+	test=test.merge(predicciones, on="store_subgroup_date_id", how="left")
+	test.columns=[x.upper() for x in test.columns]
+	ruta="prediccion_kaggle.csv"
+	if os.path.exists(ruta):
+		os.remove(ruta)
+		test.to_csv(ruta,index=False)
+	else:
+		test.to_csv(ruta,index=False)
+	return test
 
 	
 	
