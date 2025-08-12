@@ -267,7 +267,9 @@ def preparar_test(nombre_archivo_test:str):
 	archivo=Path("test_prediccion.csv")
 	if not archivo.exists():
 		ventas=importar_ventas()
-		ventas=ventas[["date","demand","store_cod","subgroup_cod","mean_price","std_price","max_price","min_price"]]
+		ventas=ventas[["date","demand","store_cod","subgroup_cod","mean_price","std_price","max_price","min_price",
+					  'std_discount', 'max_discount', 'min_discount', 'std_diff_factory',
+				       'max_diff_factory', 'min_diff_factory']]
 		ventas=generar_rolling_features(ventas,"mean_price",[1,2,3,4],["subgroup_cod","store_cod"])
 		ventas=generar_rolling_features(ventas,"demand",[1,2,3,4],["subgroup_cod","store_cod"])
 		test=leer_csv(nombre_archivo_test)
@@ -301,7 +303,8 @@ def preparar_test(nombre_archivo_test:str):
        'demand_rolling_sum_7d', 'demand_rolling_mean_14d',
        'demand_rolling_sum_14d', 'demand_rolling_mean_21d',
        'demand_rolling_sum_21d', 'demand_rolling_mean_28d',
-       'demand_rolling_sum_28d']]
+       'demand_rolling_sum_28d','std_discount', 'max_discount', 'min_discount', 'std_diff_factory',
+       'max_diff_factory', 'min_diff_factory']]
 		test.sort_values(by=["subgroup_cod","store_cod","date"],inplace=True)
 		test.to_csv("test_prediccion.csv",index=False)
 	else:
