@@ -112,31 +112,95 @@ def generar_subgroup_cod():
 	codigo_subgroup=list(range(len(subgroup)))
 	return dict(zip(subgroup,codigo_subgroup))
 
+
+
+def generar_rolling_features(df, col, semanas, group_cols):
+    """
+    Genera medias móviles y sumas móviles para la columna `col` en las ventanas 
+    de semanas indicadas en la lista `semanas`.
+
+    Args:
+        df (pd.DataFrame): DataFrame con columna de fechas llamada 'date'.
+        col (str): Columna sobre la que calcular (ej: 'demanda' o 'ventas').
+        semanas (list de int): Cantidad de semanas para las ventanas (ej: [1,2,4]).
+        group_cols (list de str): Columnas para agrupar (ej: ['store_cod', 'subgroup_cod']).
+
+    Returns:
+        pd.DataFrame: DataFrame con nuevas columnas añadidas:
+          - {col}_rolling_mean_{días}d
+          - {col}_rolling_sum_{días}d
+    """
+    df = df.sort_values("date").copy()
+
+    for sem in semanas:
+        window = sem * 7  # días de la ventana
+        mean_col = f"{col}_rolling_mean_{window}d"
+        sum_col = f"{col}_rolling_sum_{window}d"
+
+        df[mean_col] = (
+            df.groupby(group_cols)[col]
+              .transform(lambda x: x.shift(1).rolling(window=window, min_periods=1).mean())
+        )
+        df[sum_col] = (
+            df.groupby(group_cols)[col]
+              .transform(lambda x: x.shift(1).rolling(window=window, min_periods=1).sum())
+        )
+    return df
+
+
+def subgroup_category():
+	product_master=leer_csv("eci_product_master")[["subgroup","category"]]
+	mapper={}
+	for i in range(len(product_master)):
+		fila=product_master.iloc[i]
+		subgroup=fila.iloc[0]
+		category=fila.iloc[1]
+		mapper[subgroup]=category
+	return mapper
+
+def subgroup_group():
+	product_master=leer_csv("eci_product_master")[["subgroup","group"]]
+	mapper={}
+	for i in range(len(product_master)):
+		fila=product_master.iloc[i]
+		subgroup=fila.iloc[0]
+		group=fila.iloc[1]
+		mapper[subgroup]=group
+	return mapper
+
+
 def importar_ventas():
 	from pathlib import Path
 	archivo=Path("ventas_final.csv")
 	if not archivo.exists():
 		ventas=leer_csv("eci_transactions")
+		product_master=leer_csv("eci_product_master")[["category","group","subgroup"]]
 		store_dict=generar_store_cod()
 		subgroup_dict=generar_subgroup_cod()
 		cluster=store_cluster_codigo()
+		group=subgroup_group()
+		category=subgroup_category()
 		ventas["quantity"]=ventas["total_sales"]//ventas["price"]
 		
 		ventas=sql^"""SELECT date,store_id,subgroup, sum(quantity) as demand, AVG(price) as mean_price,
 					STDDEV_POP(price) as std_price, MAX(price) as max_price, MIN(price) as min_price
 					FROM ventas GROUP BY date, store_id, subgroup"""
+		ventas["group"]=ventas["subgroup"].map(group)
+		ventas["category"]=ventas["subgroup"].map(category)
 		ventas["cluster"]=ventas["store_id"].map(cluster)
 		ventas["store_cod"]=ventas["store_id"].map(store_dict)
 		ventas["subgroup_cod"]=ventas["subgroup"].map(subgroup_dict)
 		ventas.drop(["store_id","subgroup"],axis=1,inplace=True)
 		ventas=ventas.sort_values(by=["subgroup_cod","store_cod","date"])
-		for i in range(1,8): #agregamos lag a 7 dias por que vamos a predecir 7 dias
-			generar_lag_features(ventas,"demand",i)
+		# for i in range(1,8): #agregamos lag a 7 dias por que vamos a predecir 7 dias
+		# 	generar_lag_features(ventas,"demand",i)
 		ventas["date"]=pd.to_datetime(ventas["date"])
 		ventas["day"]=ventas["date"].dt.day
 		ventas["month"]=ventas["date"].dt.month
 		ventas["year"]=ventas["date"].dt.year
 		#ventas.drop("date",axis=1,inplace=True)
+		# ventas=generar_rolling_features(ventas,"mean_price",[1,2,3,4],["subgroup_cod","store_cod"])
+		# ventas=generar_rolling_features(ventas,"demand",[1,2,3,4],["subgroup_cod","store_cod"])
 		ventas.to_csv("ventas_final.csv",index=False)
 		return ventas
 	else:
@@ -160,7 +224,9 @@ def preparar_test(nombre_archivo_test:str):
 	archivo=Path("test_prediccion.csv")
 	if not archivo.exists():
 		ventas=importar_ventas()
-		ventas=ventas[["date","store_cod","subgroup_cod","mean_price","std_price","max_price","min_price"]]
+		ventas=ventas[["date","demand","store_cod","subgroup_cod","mean_price","std_price","max_price","min_price"]]
+		ventas=generar_rolling_features(ventas,"mean_price",[1,2,3,4],["subgroup_cod","store_cod"])
+		ventas=generar_rolling_features(ventas,"demand",[1,2,3,4],["subgroup_cod","store_cod"])
 		test=leer_csv(nombre_archivo_test)
 		test[['store_id', 'subgroup', 'date']] = test["store_subgroup_date_id"].str.split('_', expand=True)
 		test["store_cod"]=test["store_id"].map(generar_store_cod())
@@ -184,7 +250,15 @@ def preparar_test(nombre_archivo_test:str):
 		test["month"]=test["date"].dt.month
 		test["year"]=test["date"].dt.year	
 		test["cluster"]=test["store_id"].map(store_cluster_codigo())
-		test=test[['date',"store_subgroup_date_id", 'store_cod', 'subgroup_cod', 'mean_price',"cluster","year","day","month","std_price","max_price","min_price"]]
+		test=test[['date',"store_subgroup_date_id", 'store_cod', 'subgroup_cod', 'mean_price',"cluster","year","day","month","std_price","max_price","min_price",'mean_price_rolling_mean_7d',
+       'mean_price_rolling_sum_7d', 'mean_price_rolling_mean_14d',
+       'mean_price_rolling_sum_14d', 'mean_price_rolling_mean_21d',
+       'mean_price_rolling_sum_21d', 'mean_price_rolling_mean_28d',
+       'mean_price_rolling_sum_28d', 'demand_rolling_mean_7d',
+       'demand_rolling_sum_7d', 'demand_rolling_mean_14d',
+       'demand_rolling_sum_14d', 'demand_rolling_mean_21d',
+       'demand_rolling_sum_21d', 'demand_rolling_mean_28d',
+       'demand_rolling_sum_28d']]
 		test.sort_values(by=["subgroup_cod","store_cod","date"],inplace=True)
 		test.to_csv("test_prediccion.csv",index=False)
 	else:
@@ -206,14 +280,29 @@ def crear_archivo_kaggle(predicciones):
 		test.to_csv(ruta,index=False)
 	return test
 
+
+
+def subgroup_category():
+	product_master=leer_csv("eci_product_master")[["subgroup","category"]]
+	mapper={}
+	for i in range(len(product_master)):
+		fila=product_master.iloc[i]
+		subgroup=fila.iloc[0]
+		category=fila.iloc[1]
+		mapper[subgroup]=category
+	return mapper
+
 	
-	
 
-
-
-
-
-
+def subgroup_group():
+	product_master=leer_csv("eci_product_master")[["subgroup","group"]]
+	mapper={}
+	for i in range(len(product_master)):
+		fila=product_master.iloc[i]
+		subgroup=fila.iloc[0]
+		group=fila.iloc[1]
+		mapper[subgroup]=group
+	return mapper
 
 
 
