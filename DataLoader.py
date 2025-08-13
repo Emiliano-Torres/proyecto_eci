@@ -313,10 +313,15 @@ def preparar_test(nombre_archivo_test:str):
 
 
 """Toma las predicciones y crea el archivo para subir al kaggle"""
-def crear_archivo_kaggle(predicciones):
+def crear_archivo_kaggle(predicciones,data_test):
 	import os
 	test=leer_csv("ids_test")
-	test=test.merge(predicciones, on="store_subgroup_date_id", how="left")
+	orden_bueno = pd.DataFrame({
+    "store_subgroup_date_id": data_test["store_subgroup_date_id"],
+    "Total Sales": predicciones*data_test["mean_price"].to_numpy()
+	})
+	orden_bueno.fillna(0,inplace=True)
+	test=test.merge(orden_bueno, on="store_subgroup_date_id", how="inner")
 	test.columns=[x.upper() for x in test.columns]
 	ruta="prediccion_kaggle.csv"
 	if os.path.exists(ruta):
