@@ -228,10 +228,22 @@ def importar_ventas():
 		ventas=sql^"""SELECT date,store_id,subgroup, sum(quantity) as demand, AVG(price) as mean_price,
 					STDDEV_POP(price) as std_price, MAX(price) as max_price, MIN(price) as min_price,
 					AVG(discounts) as mean_discount, AVG(diff_factory) as mean_diff_factory,
-					STDDEV_POP(discounts) as std_discount, MAX(discounts) as max_discount, MIN(discounts) as min_discount,
+					STDDEV_POP(discounts) as std_discount, MAX(discounts) as max_discount, MIN(discounts) as 
+					min_discount, SUM(total_sales) as "total_sales", 
 					STDDEV_POP(diff_factory) as std_diff_factory, MAX(diff_factory) as max_diff_factory, 
 					MIN(diff_factory) as min_diff_factory , SUM(size) as "size"
 					FROM ventas GROUP BY date, store_id, subgroup"""
+		
+		ventas = ventas.sort_values(["store_id", "subgroup", "date"], kind="mergesort")
+
+		# Columnas que solo conocés después de la venta
+		postventa_cols = ["total_sales", "size",'std_discount', 'max_discount', 
+						  'min_discount', 'std_diff_factory',"mean_discount","mean_diff_factory",
+						  'max_diff_factory', 'min_diff_factory',"min_price","max_price","std_price","mean_price"]
+
+		# Desplazarlas para simular "lo que sabías ayer"
+		ventas[postventa_cols] = (
+	    ventas.groupby(["store_id", "subgroup"], sort=False)[postventa_cols].shift(1))
 		ventas["group"]=ventas["subgroup"].map(group)
 		ventas["category"]=ventas["subgroup"].map(category)
 		ventas["cluster"]=ventas["store_id"].map(cluster)
@@ -271,7 +283,7 @@ def preparar_test(nombre_archivo_test:str,ventas,FEATURES):
 	archivo=Path("test_prediccion.csv")
 	if not archivo.exists():
 		
-		ventas=ventas[list(set(["date","demand","store_cod","subgroup_cod"]+FEATURES))]
+		ventas=ventas[list(set(["date","mean_price","store_cod","subgroup_cod"]+FEATURES))]
 		
 		test=leer_csv(nombre_archivo_test)
 		test[['store_id', 'subgroup', 'date']] = test["store_subgroup_date_id"].str.split('_', expand=True)
@@ -293,7 +305,7 @@ def preparar_test(nombre_archivo_test:str,ventas,FEATURES):
 		test["month"]=test["date"].dt.month
 		test["year"]=test["date"].dt.year	
 		test["cluster"]=test["store_id"].map(store_cluster_codigo())
-		test=test[list(set(['date',"store_subgroup_date_id", 'store_cod', 'subgroup_cod']+FEATURES))]
+		test=test[list(set(['date',"store_subgroup_date_id","mean_price" ,'store_cod', 'subgroup_cod']+FEATURES))]
 		test.sort_values(by=["subgroup_cod","store_cod","date"],inplace=True)
 		test.to_csv("test_prediccion.csv",index=False)
 	else:
@@ -307,7 +319,8 @@ def crear_archivo_kaggle(predicciones,data_test):
 	test=leer_csv("ids_test")
 	orden_bueno = pd.DataFrame({
     "store_subgroup_date_id": data_test["store_subgroup_date_id"],
-    "Total Sales": predicciones*data_test["mean_price"].to_numpy()
+    "Total Sales": predicciones.ravel()
+	#"Total Sales": predicciones*data_test["mean_price"].to_numpy()
 	})
 	orden_bueno.fillna(0,inplace=True)
 	test=test.merge(orden_bueno, on="store_subgroup_date_id", how="inner")
