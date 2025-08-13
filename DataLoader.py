@@ -204,51 +204,55 @@ def agregar_ticket_price(transacciones):
 
 
 def importar_ventas():
-    from pathlib import Path
-    archivo=Path("ventas_final.csv")
-    if not archivo.exists():
-        ventas=leer_csv("eci_transactions")
-        product_master=leer_csv("eci_product_master")[["category","group","subgroup"]]
-        store_dict=generar_store_cod()
-        subgroup_dict=generar_subgroup_cod()
-        cluster=store_cluster_codigo()
-        group=subgroup_group()
-        category=subgroup_category()
-        transacciones=agregar_base_price(ventas)
-        transacciones=agregar_ticket_price(ventas)
-        
-        ventas["quantity"]=ventas["total_sales"]//ventas["price"]
-        transacciones["quantity"]=transacciones["total_sales"]/transacciones["price"]
-        transacciones["discounts"]=(transacciones["base_price"]-transacciones["price"])/transacciones["quantity"]
-        transacciones["diff_factory"]=(transacciones["price"]-transacciones["initial_ticket_price"])/transacciones["quantity"]
-        
-        
-        ventas=sql^"""SELECT date,store_id,subgroup, sum(quantity) as demand, AVG(price) as mean_price,
-                    STDDEV_POP(price) as std_price, MAX(price) as max_price, MIN(price) as min_price,
-                    STDDEV_POP(discounts) as std_discount, MAX(discounts) as max_discount, MIN(discounts) as min_discount,
-                    STDDEV_POP(diff_factory) as std_diff_factory, MAX(diff_factory) as max_diff_factory, MIN(diff_factory) as min_diff_factory
-                    FROM ventas GROUP BY date, store_id, subgroup"""
-        ventas["group"]=ventas["subgroup"].map(group)
-        ventas["category"]=ventas["subgroup"].map(category)
-        ventas["cluster"]=ventas["store_id"].map(cluster)
-        ventas["store_cod"]=ventas["store_id"].map(store_dict)
-        ventas["subgroup_cod"]=ventas["subgroup"].map(subgroup_dict)
-        ventas.drop(["store_id","subgroup"],axis=1,inplace=True)
-        ventas=ventas.sort_values(by=["subgroup_cod","store_cod","date"])
-        # for i in range(1,8): #agregamos lag a 7 dias por que vamos a predecir 7 dias
-        # 	generar_lag_features(ventas,"demand",i)
-        ventas["date"]=pd.to_datetime(ventas["date"])
-        ventas["day"]=ventas["date"].dt.day
-        ventas["month"]=ventas["date"].dt.month
-        ventas["year"]=ventas["date"].dt.year
-        #ventas.drop("date",axis=1,inplace=True)
-        # ventas=generar_rolling_features(ventas,"mean_price",[1,2,3,4],["subgroup_cod","store_cod"])
-        # ventas=generar_rolling_features(ventas,"demand",[1,2,3,4],["subgroup_cod","store_cod"])
-        ventas.to_csv("ventas_final.csv",index=False)
-        return ventas
-    else:
-        ventas=leer_csv("ventas_final.csv")
-        return ventas
+	from pathlib import Path
+	archivo=Path("ventas_final.csv")
+	if not archivo.exists():
+		ventas=leer_csv("eci_transactions")
+		product_master=leer_csv("eci_product_master")[["category","group","subgroup"]]
+		store_dict=generar_store_cod()
+		subgroup_dict=generar_subgroup_cod()
+		cluster=store_cluster_codigo()
+		group=subgroup_group()
+		category=subgroup_category()
+		ventas=agregar_base_price(ventas)
+		ventas=agregar_ticket_price(ventas)
+		
+		ventas["quantity"]=ventas["total_sales"]//ventas["price"]
+		ventas["size"]=1
+		ventas["quantity"]=ventas["total_sales"]/ventas["price"]
+		ventas["discounts"]=((ventas["price"]-ventas["base_price"])
+									/(ventas["price"])*ventas["quantity"])
+		ventas["diff_factory"]=((ventas["price"]-
+									   ventas["initial_ticket_price"])/ventas["initial_ticket_price"]*ventas["quantity"])
+		
+		ventas=sql^"""SELECT date,store_id,subgroup, sum(quantity) as demand, AVG(price) as mean_price,
+					STDDEV_POP(price) as std_price, MAX(price) as max_price, MIN(price) as min_price,
+					AVG(discounts) as mean_discount, AVG(diff_factory) as mean_diff_factory,
+					STDDEV_POP(discounts) as std_discount, MAX(discounts) as max_discount, MIN(discounts) as min_discount,
+					STDDEV_POP(diff_factory) as std_diff_factory, MAX(diff_factory) as max_diff_factory, 
+					MIN(diff_factory) as min_diff_factory , SUM(size) as "size"
+					FROM ventas GROUP BY date, store_id, subgroup"""
+		ventas["group"]=ventas["subgroup"].map(group)
+		ventas["category"]=ventas["subgroup"].map(category)
+		ventas["cluster"]=ventas["store_id"].map(cluster)
+		ventas["store_cod"]=ventas["store_id"].map(store_dict)
+		ventas["subgroup_cod"]=ventas["subgroup"].map(subgroup_dict)
+		ventas.drop(["store_id","subgroup"],axis=1,inplace=True)
+		ventas=ventas.sort_values(by=["subgroup_cod","store_cod","date"])
+		# for i in range(1,8): #agregamos lag a 7 dias por que vamos a predecir 7 dias
+		# 	generar_lag_features(ventas,"demand",i)
+		ventas["date"]=pd.to_datetime(ventas["date"])
+		ventas["day"]=ventas["date"].dt.day
+		ventas["month"]=ventas["date"].dt.month
+		ventas["year"]=ventas["date"].dt.year
+		#ventas.drop("date",axis=1,inplace=True)
+		# ventas=generar_rolling_features(ventas,"mean_price",[1,2,3,4],["subgroup_cod","store_cod"])
+		# ventas=generar_rolling_features(ventas,"demand",[1,2,3,4],["subgroup_cod","store_cod"])
+		ventas.to_csv("ventas_final.csv",index=False)
+		return ventas
+	else:
+		ventas=leer_csv("ventas_final.csv")
+		return ventas
 
 def agregar_fourier(df,k):
 	df["date"]=pd.to_datetime(df["date"])
