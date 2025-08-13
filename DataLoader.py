@@ -266,49 +266,34 @@ def agregar_fourier(df,k):
 		df[f"mensual_sin_{i}"]=sin(2*i*pi*meses/periodo_mensual)
 		df[f"mensual_cos_{i}"]=cos(2*i*pi*meses/periodo_mensual)
 		
-def preparar_test(nombre_archivo_test:str):
+def preparar_test(nombre_archivo_test:str,ventas,FEATURES):
 	from pathlib import Path
 	archivo=Path("test_prediccion.csv")
 	if not archivo.exists():
-		ventas=importar_ventas()
-		ventas=ventas[["date","demand","store_cod","subgroup_cod","mean_price","std_price","max_price","min_price",
-					  'std_discount', 'max_discount', 'min_discount', 'std_diff_factory',
-				       'max_diff_factory', 'min_diff_factory']]
-		ventas=generar_rolling_features(ventas,"mean_price",[1,2,3,4],["subgroup_cod","store_cod"])
-		ventas=generar_rolling_features(ventas,"demand",[1,2,3,4],["subgroup_cod","store_cod"])
+		
+		ventas=ventas[list(set(["date","demand","store_cod","subgroup_cod"]+FEATURES))]
+		
 		test=leer_csv(nombre_archivo_test)
 		test[['store_id', 'subgroup', 'date']] = test["store_subgroup_date_id"].str.split('_', expand=True)
 		test["store_cod"]=test["store_id"].map(generar_store_cod())
 		test["subgroup_cod"]=test["subgroup"].map(generar_subgroup_cod())
 		test["date"]=pd.to_datetime(test["date"])
 		ventas["date"]=pd.to_datetime(ventas["date"])
-		test["mean_price"]=0
 		test['fecha_busqueda'] = test['date'] - pd.DateOffset(weeks=1)
 		
 		test = pd.merge_asof(
 		    test.sort_values('fecha_busqueda'),
-		    ventas.rename(columns={'mean_price': 'precio_2023', 'date': 'fecha_ref'}).sort_values('fecha_ref'),
+		    ventas.rename(columns={'date': 'fecha_ref'}).sort_values('fecha_ref'),
 		    left_on='fecha_busqueda',
 		    right_on='fecha_ref',
 		    by=['store_cod', 'subgroup_cod'],  # empareja dentro de cada grupo
 		    direction='backward'
 		)
-		test['mean_price'] = test['precio_2023']
-	
 		test["day"]=test["date"].dt.day
 		test["month"]=test["date"].dt.month
 		test["year"]=test["date"].dt.year	
 		test["cluster"]=test["store_id"].map(store_cluster_codigo())
-		test=test[['date',"store_subgroup_date_id", 'store_cod', 'subgroup_cod', 'mean_price',"cluster","year","day","month","std_price","max_price","min_price",'mean_price_rolling_mean_7d',
-       'mean_price_rolling_sum_7d', 'mean_price_rolling_mean_14d',
-       'mean_price_rolling_sum_14d', 'mean_price_rolling_mean_21d',
-       'mean_price_rolling_sum_21d', 'mean_price_rolling_mean_28d',
-       'mean_price_rolling_sum_28d', 'demand_rolling_mean_7d',
-       'demand_rolling_sum_7d', 'demand_rolling_mean_14d',
-       'demand_rolling_sum_14d', 'demand_rolling_mean_21d',
-       'demand_rolling_sum_21d', 'demand_rolling_mean_28d',
-       'demand_rolling_sum_28d','std_discount', 'max_discount', 'min_discount', 'std_diff_factory',
-       'max_diff_factory', 'min_diff_factory']]
+		test=test[list(set(['date',"store_subgroup_date_id", 'store_cod', 'subgroup_cod']+FEATURES))]
 		test.sort_values(by=["subgroup_cod","store_cod","date"],inplace=True)
 		test.to_csv("test_prediccion.csv",index=False)
 	else:
