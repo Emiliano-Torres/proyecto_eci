@@ -39,3 +39,5 @@ El objetivo es **anticipar la demanda en $ de ventas futuras** de cada subgrupo 
  
 
 ---
+
+### Link a los datos: https://drive.google.com/drive/folders/1zgrGxqgtM2QJSUCIspRYTfZmR4T_6Kfb?usp=sharing
